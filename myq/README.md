@@ -1,0 +1,3 @@
+在zmy上传的代码基础上
+build_dataset.py中添加了HU处理和加窗
+finetuning.py中有个奇怪的bug，暂时没de出来，架构需要再研究下
