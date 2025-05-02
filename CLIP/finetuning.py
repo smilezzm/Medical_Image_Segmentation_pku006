@@ -37,15 +37,16 @@ train_loader, valid_loader = get_train_val_dataloader(
 print("dataloader loaded successfully")
 model = CLIPSegForImageSegmentation.from_pretrained("CIDAS/clipseg-rd64-refined", cache_dir="./CLIP/hf_cache")
 print("Model loaded successfully")
-lora_config = LoraConfig(
-    r=8, 
-    lora_alpha=32,
-    target_modules=["visual_projection", "text_projection"],  # 修改CLIPSeg关键层
-    lora_dropout=0.1
-)
-model = get_peft_model(model, lora_config)
-print("LoRA configuration applied to the model:")
-model.print_trainable_parameters()  # 应显示可训练参数占比约1-5%
+# lora_config = LoraConfig(
+#     r=8, 
+#     lora_alpha=32,
+#     # target_modules=["visual_projection", "text_projection"],  # 修改CLIPSeg关键层
+#     target_modules=['Linear'],
+#     lora_dropout=0.1
+# )
+# model = get_peft_model(model, lora_config)
+# print("LoRA configuration applied to the model:")
+# model.print_trainable_parameters()  # 应显示可训练参数占比约1-5%
 model.to(device)
 
 
@@ -54,8 +55,8 @@ def compute_metrics(eval_pred):
     logits, labels = eval_pred
     probs = logits.sigmoid()
     preds = (probs > 0.5).float()  # Convert probabilities to binary predictions
-    intersection = (preds * labels).sum((1, 2, 3))    # notice the dimension here, (B, 1, H, W) tensor, which can be seen in documentation of CLIPSeg
-    union = preds.sum((1, 2, 3)) + labels.sum((1, 2, 3))
+    intersection = (preds * labels).sum((1, 2))    # notice the dimension here, (B, H, W) tensor
+    union = preds.sum((1, 2)) + labels.sum((1, 2))
     dice = (2 * intersection) / (union + 1e-6)
     return dice.mean().item()
 
@@ -68,9 +69,9 @@ wandb.init(
     config={
         "learning_rate": lr,
         "num_epochs": num_epochs,
-        "lora_r": lora_config.r,
-        "lora_alpha": lora_config.lora_alpha,
-        "lora_dropout": lora_config.lora_dropout,
+        # "lora_r": lora_config.r,
+        # "lora_alpha": lora_config.lora_alpha,
+        # "lora_dropout": lora_config.lora_dropout,
         "N_slices": N_slices,
         "N_neg_slices": N_neg_slices,
         "seed": seed,
@@ -97,7 +98,6 @@ for epoch in tqdm(range(num_epochs), desc="Epochs"):
                         pixel_values=batch["pixel_values"].to(device),
                         attention_mask=batch["attention_mask"].to(device),
                         labels=batch["labels"].to(device))
-        optimizer.zero_grad()
         loss = outputs.loss
         loss.backward()
         optimizer.step()
@@ -122,8 +122,8 @@ for epoch in tqdm(range(num_epochs), desc="Epochs"):
             dice_score += compute_metrics((outputs.logits, batch["labels"].to(device)))
         avg_val_loss = val_loss / len(valid_loader)
         avg_dice_score = dice_score / len(valid_loader)
-        wandb.log({"val_loss": avg_val_loss, "dice_score": avg_dice_score})
-        print(f"Validation Loss: {avg_val_loss.item():.4f}, Dice Score: {avg_dice_score:.4f}")
+        wandb.log({"val_loss": avg_val_loss, "dice_score": avg_dice_score, "epoch": epoch + 1})
+        print(f"Validation Loss: {avg_val_loss:.4f}, Dice Score: {avg_dice_score:.4f}")
         
         if avg_dice_score > best_dice:
             best_dice = avg_dice_score
