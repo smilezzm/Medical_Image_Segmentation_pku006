@@ -1,46 +1,42 @@
-from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation
-from build_dataset import MedicalDataset
+import os
+os.environ["WANDB_DIR"] = "./CLIP/wandb_logs"
+from transformers import CLIPSegForImageSegmentation
+from CLIP.build_dataset import get_train_val_dataloader
 import torch
-from torch.utils.data import random_split
 from peft import LoraConfig, get_peft_model
-from transformers import TrainingArguments, Trainer
-import evaluate
+import wandb
+from tqdm import tqdm
 
-"""
-Haven't tested yet.
-"""
-
-dataset = MedicalDataset(prompt_csv="prompt.csv")  # prompt.csv is obtained by build_prompt_file.py
-train_size = int(0.8 * len(dataset))
-test_size  = len(dataset) - train_size
-train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
-print("Dataset splitting done")
-print("Test dataset size:", len(test_dataset))
-print("Training dataset size:", len(train_dataset))
-
-def process_input(batch):
-    """
-    Collects image and text prompts from a batch of samples. Also return the ground truth mask as "labels".
-    This function is used in Trainer.
-
-    batch: A batch of samples from the dataset.
-    return: A tuple containing a list of images and a list of text prompts.
-    """
-    images = [sample["image"] for sample in batch]  # Convert numpy arrays to PIL images
-    texts = [sample["prompt"] for sample in batch]  # Collect text prompts
-    inputs = processor(
-    text=texts,                # 文本列表
-    images=images,              # 一个batch内的多张图像
-    padding=True,              # 自动填充文本到相同长度
-    truncation=True,           # 截断超长文本
-    return_tensors="pt")      # 返回 PyTorch 张量"]
-    inputs["labels"] = torch.tensor([sample["mask"] for sample in batch])  # Collect ground truth masks as labels
-    return inputs
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+checkpoint_dir = "./CLIP/cliseg-medical"
+num_epochs = 20
+lr = 1e-3
+N_slices = 30
+N_neg_slices = 5
+batch_size = 4
+hu_clip_min = 0.0
+hu_clip_max = 500.0
+val_ratio = 0.2
+seed = 42
 
 
-processor = CLIPSegProcessor.from_pretrained("CIDAS/clipseg-rd64-refined")
-model = CLIPSegForImageSegmentation.from_pretrained("CIDAS/clipseg-rd64-refined")
-print("Model and processor loaded successfully")
+train_loader, valid_loader = get_train_val_dataloader(
+    pt_path="./CLIP/pku_dataset", 
+    image_dir="./pku_train_dataset/ct",
+    mask_dir="./pku_train_dataset/label",
+    json_dir="./pku_train_dataset/json",
+    N_slices=N_slices,
+    N_neg_slices=N_neg_slices,
+    seed=seed,
+    val_ratio=val_ratio,
+    batch_size=batch_size,
+    slope=1.0,
+    intercept=-1024.0,   #虽然输入了-1024，实际上没有用到这个
+    hu_clip_min=hu_clip_min,
+    hu_clip_max=hu_clip_max)
+print("dataloader loaded successfully")
+model = CLIPSegForImageSegmentation.from_pretrained("CIDAS/clipseg-rd64-refined", cache_dir="./CLIP/hf_cache")
+print("Model loaded successfully")
 lora_config = LoraConfig(
     r=8, 
     lora_alpha=32,
@@ -50,33 +46,86 @@ lora_config = LoraConfig(
 model = get_peft_model(model, lora_config)
 print("LoRA configuration applied to the model:")
 model.print_trainable_parameters()  # 应显示可训练参数占比约1-5%
+model.to(device)
 
 
-dice_metric = evaluate.load("dice_score")
+# 直接把dice_metric放入compute_metrics函数中了
 def compute_metrics(eval_pred):
     logits, labels = eval_pred
-    preds = (torch.sigmoid(torch.tensor(logits)) > 0.5).float()
-    return dice_metric.compute(predictions=preds.flatten(), references=labels.flatten())
+    probs = logits.sigmoid()
+    preds = (probs > 0.5).float()  # Convert probabilities to binary predictions
+    intersection = (preds * labels).sum((1, 2, 3))    # notice the dimension here, (B, 1, H, W) tensor, which can be seen in documentation of CLIPSeg
+    union = preds.sum((1, 2, 3)) + labels.sum((1, 2, 3))
+    dice = (2 * intersection) / (union + 1e-6)
+    return dice.mean().item()
 
-training_args = TrainingArguments(
-    output_dir="clipseg-medical",    #
-    per_device_train_batch_size=4,
-    learning_rate=3e-5,
-    num_train_epochs=20,
-    evaluation_strategy="steps",
-    eval_steps=200,   #500,
-    save_steps=1000,  #1000,
-    fp16=True,  # 启用混合精度训练
-    report_to="wandb",  # 使用Weights & Biases进行实验跟踪
-    disable_tqdm=False  # I added a process bar here
+
+
+optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=4, gamma=0.3)
+wandb.init(
+    project="CLIPSeg",
+    config={
+        "learning_rate": lr,
+        "num_epochs": num_epochs,
+        "lora_r": lora_config.r,
+        "lora_alpha": lora_config.lora_alpha,
+        "lora_dropout": lora_config.lora_dropout,
+        "N_slices": N_slices,
+        "N_neg_slices": N_neg_slices,
+        "seed": seed,
+        "val_ratio": val_ratio,
+        "batch_size": batch_size,
+        "hu_clip_min": hu_clip_min,
+        "hu_clip_max": hu_clip_max,
+        "optimizer": optimizer.__class__.__name__,
+        "scheduler": scheduler.__class__.__name__,
+        "step_size": scheduler.step_size,
+        "gamma": scheduler.gamma
+    }
 )
 
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_dataset,
-    eval_dataset=test_dataset,
-    compute_metrics=compute_metrics,
-    data_collator=process_input  # 自定义数据需关闭默认collator
-)
-trainer.train()
+
+best_dice = 0.0
+
+for epoch in tqdm(range(num_epochs), desc="Epochs"):
+    model.train()
+    running_loss = 0.0
+    for batch in tqdm(train_loader, desc="Training Batches"):
+        optimizer.zero_grad()
+        outputs = model(input_ids=batch["input_ids"].to(device),
+                        pixel_values=batch["pixel_values"].to(device),
+                        attention_mask=batch["attention_mask"].to(device),
+                        labels=batch["labels"].to(device))
+        optimizer.zero_grad()
+        loss = outputs.loss
+        loss.backward()
+        optimizer.step()
+        running_loss += loss.item()
+        wandb.log({"train_loss": loss.item()})
+
+    avg_train_loss = running_loss / len(train_loader)
+    wandb.log({"avg_train_loss": avg_train_loss})
+    print(f"Epoch {epoch + 1}/{num_epochs}, Average Training Loss: {avg_train_loss:.4f}")
+    scheduler.step()
+
+    model.eval()
+    dice_score = 0.0
+    val_loss = 0.0
+    with torch.no_grad():
+        for batch in tqdm(valid_loader, desc="Validation Batches"):
+            outputs = model(input_ids=batch["input_ids"].to(device),
+                            pixel_values=batch["pixel_values"].to(device),
+                            attention_mask=batch["attention_mask"].to(device),
+                            labels=batch["labels"].to(device))
+            val_loss += outputs.loss.item()
+            dice_score += compute_metrics((outputs.logits, batch["labels"].to(device)))
+        avg_val_loss = val_loss / len(valid_loader)
+        avg_dice_score = dice_score / len(valid_loader)
+        wandb.log({"val_loss": avg_val_loss, "dice_score": avg_dice_score})
+        print(f"Validation Loss: {avg_val_loss.item():.4f}, Dice Score: {avg_dice_score:.4f}")
+        
+        if avg_dice_score > best_dice:
+            best_dice = avg_dice_score
+            model.save_pretrained(checkpoint_dir)
+wandb.finish()
