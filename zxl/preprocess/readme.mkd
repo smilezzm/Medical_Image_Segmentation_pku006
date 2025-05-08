@@ -1,0 +1,5 @@
+## 文档说明
+
+resample.py
+
+将数据集CLAPTPS种的CT/Label图像重采样，输出至新的文件夹
