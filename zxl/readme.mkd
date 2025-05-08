@@ -1,1 +1,3 @@
-readme
+## 文档注释
+CLAPATPS_preprocessing.py
+nii.gz文件数值查看，可视化，灰度颜色条
