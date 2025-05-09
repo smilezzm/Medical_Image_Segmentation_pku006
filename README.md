@@ -1,6 +1,6 @@
 # Medical_Image_Segmentation_pku006
 
-前面传的数据处理和模型训练代码有些bug，需要一些时间来一点点改。  --孟尧
+#ClipSeg
 
 已经上传了新版数据处理和微调代码，主要调整：
 1. 彻底分离了数据处理和训练，但是要求有较大的内存才能跑
@@ -10,6 +10,8 @@
 随便设了一些超参数，结果大概这样，dice score不是很高：
 ![image](https://github.com/user-attachments/assets/f3ef740c-4654-4e2c-9e6f-34bd81f85c3b)
 --孟尧
+
+#SAM
 
 SAM模型所需要的ResNet网络及其训练放在了./SAM文件夹中，
 使用方法为：
