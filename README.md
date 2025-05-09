@@ -11,6 +11,9 @@
 ![image](https://github.com/user-attachments/assets/f3ef740c-4654-4e2c-9e6f-34bd81f85c3b)
 --孟尧
 
+## 数据重采样
+见信哥的文件夹[./zxl/preprocess/resample.py](./zxl/preprocess/resample.py)
+
 # SAM
 
 SAM模型所需要的ResNet网络及其训练放在了./SAM文件夹中，
