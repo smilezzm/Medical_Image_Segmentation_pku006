@@ -25,6 +25,7 @@ python temp.py，
 确保./SAM下有名为pku_train_dataset的数据集（这个数据集就是学校提供的原始数据集，不是CLIPSeg预处理后的数据集）.
 
 ResNet网络容易训练，只需几个epoch，取测试集上loss最小（约0.0065）的模型参数储存在./SAM/best_model.pth中，就完成了ResNet的训练了. 
+但是参数文件超过了25MB，没法上传，只好放微信群里了.
 
 ![image](https://github.com/user-attachments/assets/3ae0364f-18bb-40fa-abea-614d22181a86)
 ![image](https://github.com/user-attachments/assets/5739383f-ed6a-4137-9798-c91a9b3e1a8a)
@@ -33,5 +34,6 @@ ResNet网络容易训练，只需几个epoch，取测试集上loss最小（约0.
 直接用SAM模型，不对SAM进行微调，也能取得很好效果. 
 因此，直接做成演示文件[./SAM/SAMseg.py](./SAM/SAMseg.py). 
 只需要保证./SAM中有best_model.pth和名为"pku_train_dataset"的原始数据集，就可以在./SAM中运行SAMseg.py，得到图像窗口。
+
 ![f914205c53612c63670f4b963950f37](https://github.com/user-attachments/assets/530ce3f4-457b-4d75-bc21-0185b9e7c7d4)
 
