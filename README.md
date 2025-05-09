@@ -11,3 +11,10 @@
 ![image](https://github.com/user-attachments/assets/f3ef740c-4654-4e2c-9e6f-34bd81f85c3b)
 --孟尧
 
+SAM模型所需要的ResNet网络及其训练放在了./SAM文件夹中，
+使用方法为：
+在./下运行
+```shell
+python SAM/temp.py，
+```
+确保./下有名为pku_train_dataset的数据集（这个数据集就是学校提供的原始数据集，不是CLIPSeg预处理后的数据集）.
