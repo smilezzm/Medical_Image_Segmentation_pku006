@@ -166,35 +166,35 @@ if __name__ == "__main__":
 
 
     # pick some slices to visualize
-    import matplotlib.pyplot as plt
-    import matplotlib.patches as patches
+    # import matplotlib.pyplot as plt
+    # import matplotlib.patches as patches
 
-    def show_ct_with_patches(ct_slice, pred_map, patch_size=32, threshold=0.5):
-        """
-        ct_slice: 2D numpy array (H, W)
-        pred_map: 2D numpy array (H/patch_size, W/patch_size) of scores in [0,1]
-        """
-        fig, ax = plt.subplots(figsize=(6,6))
-        ax.imshow(ct_slice, cmap='gray')
-        h_p, w_p = pred_map.shape
-        for i in range(h_p):
-            for j in range(w_p):
-                if pred_map[i, j] > threshold:
-                    rect = patches.Rectangle(
-                        (j * patch_size, i * patch_size),
-                        patch_size, patch_size,
-                        linewidth=1, edgecolor='r', facecolor='none'
-                    )
-                    ax.add_patch(rect)
-        plt.axis('off')
-        plt.show()
-        plt.savefig("./SAM/ct_with_patches.png", dpi=300, bbox_inches='tight')
+    # def show_ct_with_patches(ct_slice, pred_map, patch_size=32, threshold=0.5):
+    #     """
+    #     ct_slice: 2D numpy array (H, W)
+    #     pred_map: 2D numpy array (H/patch_size, W/patch_size) of scores in [0,1]
+    #     """
+    #     fig, ax = plt.subplots(figsize=(6,6))
+    #     ax.imshow(ct_slice, cmap='gray')
+    #     h_p, w_p = pred_map.shape
+    #     for i in range(h_p):
+    #         for j in range(w_p):
+    #             if pred_map[i, j] > threshold:
+    #                 rect = patches.Rectangle(
+    #                     (j * patch_size, i * patch_size),
+    #                     patch_size, patch_size,
+    #                     linewidth=1, edgecolor='r', facecolor='none'
+    #                 )
+    #                 ax.add_patch(rect)
+    #     plt.axis('off')
+    #     plt.show()
+    #     plt.savefig("./SAM/ct_with_patches.png", dpi=300, bbox_inches='tight')
 
-    ct_path, _, slice_idx = dataset.examples[0]
-    ct_np = nib.load(ct_path).get_fdata().astype(np.float32)[:,:,slice_idx]
-    ct_np_clipped = np.clip(ct_np, dataset.hu_min, dataset.hu_max)
-    x_gray = torch.from_numpy(ct_np_clipped)
-    x_rgb = x_gray.unsqueeze(0).repeat(3,1,1).unsqueeze(0).to(train_device)  # (1, 3, H, W)
-    with torch.no_grad():
-        pred_map = net(x_rgb).squeeze(0).squeeze(0)
-    show_ct_with_patches(ct_np_clipped, pred_map.cpu().numpy(), patch_size=32, threshold=0.5)
+    # ct_path, _, slice_idx = dataset.examples[0]
+    # ct_np = nib.load(ct_path).get_fdata().astype(np.float32)[:,:,slice_idx]
+    # ct_np_clipped = np.clip(ct_np, dataset.hu_min, dataset.hu_max)
+    # x_gray = torch.from_numpy(ct_np_clipped)
+    # x_rgb = x_gray.unsqueeze(0).repeat(3,1,1).unsqueeze(0).to(train_device)  # (1, 3, H, W)
+    # with torch.no_grad():
+    #     pred_map = net(x_rgb).squeeze(0).squeeze(0)
+    # show_ct_with_patches(ct_np_clipped, pred_map.cpu().numpy(), patch_size=32, threshold=0.5)
