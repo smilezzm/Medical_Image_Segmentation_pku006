@@ -1,3 +1,2 @@
-在zmy上传的代码基础上
-build_dataset.py中添加了HU处理和加窗
-finetuning.py中有个奇怪的bug，暂时没de出来，架构需要再研究下
+添加了图像增强的方法，包含图像强度增强和空间增强，可以看具体的输入输出直接调用/修改。
+针对CLIP的训练，在build_dataset中加入图像增强方法（尚未写扩增的代码）。在finetuning中增加一些细节，包括训练集显示dice_metrics，wandb的训练名称等。
