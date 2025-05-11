@@ -10,6 +10,7 @@
 随便设了一些超参数，结果大概这样，dice score不是很高：
 ![image](https://github.com/user-attachments/assets/f3ef740c-4654-4e2c-9e6f-34bd81f85c3b)
 --孟尧
+
 修改了finetuning.py的代码，发现只要lora里因为冻结了编码器的原因导致无法实现反向传播，然后计划是现解放视觉编码器的q和v参数看一下dice score的效果
 修改后的代码见sjx的文件夹
 ## 数据重采样
