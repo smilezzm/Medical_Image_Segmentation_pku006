@@ -14,8 +14,10 @@ import wandb
 
 class ClsNet(ResNet):
     '''
-    input: tensor(B, Channels, H, W), (clipped) HU values
+    针对Bladder的ResNet粗分类器
+    input: tensor(B, Channels=3, H, W), (clipped) HU values
     output: tensor(B, 1, H/32, W/32), values between 0 and 1
+    purpose: 将某个ct截面图片分块，根据每一块是否包含Bladder给出0到1的值（0表示没有，1表示很有）
     '''
     def __init__(self):
         super().__init__(Bottleneck, [3, 4, 6, 3])
@@ -39,7 +41,9 @@ class ClsNet(ResNet):
 
 
 train_device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-train_epoch=30#训练轮次
+train_epoch=30 # 针对Bladder的resnet的训练轮次
+# 一般不用跑到30轮
+
 train_batch_size=16
 ct_dir = "./pku_train_dataset/ct"
 mask_dir = "./pku_train_dataset/label"
@@ -65,6 +69,12 @@ class SAMDataset(Dataset):
         count = 0
         examples = []
 
+        # 遍历ct_paths，获取每个立体ct中所有有标记的slice_num
+        # 其中image_paths是展示标签的png图的路径，就是从这获取slice_num的
+        # 得到的examples是一个list，每个元素是一个tuple，包含ct路径、mask路径和slice_num
+        # for example:
+        # [('./pku_train_datset/ct/1.nii.gz', './pku_train_dataset/label/1.nii.gz', 15),(...),...]
+        # 仅储存path，防止内存过大 （但是ClipSeg不得不储存所有nparray，占用很多内存。因为processor里有padding等，最好一次性处理所有raw data。）
         for ct_path in ct_paths:
             ct_idx = int(Path(ct_path).name.replace('.nii.gz', ''))
             mask_path = f"{mask_dir}/{ct_idx}.nii.gz"
@@ -94,7 +104,7 @@ class SAMDataset(Dataset):
         return x, y   # x is 2D image, y is 2D mask
 
 if __name__ == "__main__":
-
+    # 开始训练Bladder的Resnet
     dataset = SAMDataset(ct_dir, mask_dir, image_dir, hu_min=0.0, hu_max=500.0, organ_idx=1)
     val_ratio = 0.2
     n_total = len(dataset)
@@ -139,7 +149,7 @@ if __name__ == "__main__":
             for batch_i,(_x,_y) in enumerate(titer):
                 x,y=_x.to(train_device),_y.to(train_device)
                 x=net(x)
-                y = torch.nn.functional.interpolate(y, scale_factor=1 / 32, mode='nearest')
+                y = torch.nn.functional.interpolate(y, scale_factor=1 / 32, mode='nearest')   #原本y(B,1,512,512)，需要弄成和x一样大(B,1,16,16)
                 optimizer.zero_grad()
                 loss_value=loss_module(x,y)
                 loss_value.backward()
@@ -149,6 +159,8 @@ if __name__ == "__main__":
                 titer.set_postfix_str(f'{average_loss:.3}')
 
                 wandb.log({"ave_loss": average_loss})
+        scheduler.step()
+
         net.eval()
         val_loss = 0.0
         with torch.no_grad():
@@ -162,10 +174,11 @@ if __name__ == "__main__":
         print(f"Epoch {i+1}/{train_epoch}, Validation Loss: {val_loss:.4f}")
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            torch.save(net.state_dict(), "./SAM/best_model.pth")
+            torch.save(net.state_dict(), "./SAM/best_model_bladder.pth")  # 储存针对Bladder的粗分类ResNet模型参数
 
 
     # pick some slices to visualize
+    # unneccessary
     # import matplotlib.pyplot as plt
     # import matplotlib.patches as patches
 

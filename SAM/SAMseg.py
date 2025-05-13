@@ -6,7 +6,9 @@ from torch.utils.data import DataLoader
 '''
 需要先将github上SAM的全部文件下载到本地./下，
 同时，保证temp.py和pku_train_dataset也在./下，
+并且已经训练完ResNet，权重文件best_model_bladder.pth也在./下，
 在终端运行python SAMseg.py即可看到所有的可视化结果.
+这个脚本没有训练任务，仅用于调用训好的ResNet和预训练的EfficientSAM来展示数据集内对bladder的分割效果
 '''
 
 
@@ -61,7 +63,7 @@ train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=Tr
 val_loader = DataLoader(val_dataset, batch_size=train_batch_size, shuffle=False)
 
 net = ClsNet().to(train_device)
-net.load_state_dict(torch.load("./best_model.pth"))
+net.load_state_dict(torch.load("./best_model_bladder.pth"))
 
 import cv2
 import numpy as np
