@@ -1,1 +1,2 @@
-1
+get_huinformation.py
+获取各器官hu值信息作为参考
