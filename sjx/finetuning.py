@@ -10,15 +10,17 @@ from tqdm import tqdm
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 checkpoint_dir = "./CLIP/cliseg-medical"
 num_epochs = 20
-lr = 3e-4
-N_slices = 30
-N_neg_slices = 5
+lr = 1e-4
+N_slices = 60
+N_neg_slices = 3
 batch_size = 4
 hu_clip_min = 0.0
 hu_clip_max = 500.0
 val_ratio = 0.2
 seed = 42
-
+#加0.1，0.9的HU值
+hu_clip_min={"Bladder":-12,"Colon":-418,"Femur_Head_L":88,"Femur_Head_R":86,"Kidney_L":-1,"Kidney_R":-2,"Liver":30,"Rectum":-190,"SmallIntestine":-107,"SpinalCord":0,"Stomach":-780}
+hu_clip_max={"Bladder":18,"Colon":41,"Femur_Head_L":476,"Femur_Head_R":492,"Kidney_L":40,"Kidney_R":41,"Liver":69,"Rectum":42,"SmallIntestine":164,"SpinalCord":58,"Stomach":41}
 
 train_loader, valid_loader = get_train_val_dataloader(
     pt_path="./CLIP/pku_dataset", 
@@ -35,7 +37,8 @@ train_loader, valid_loader = get_train_val_dataloader(
     hu_clip_min=hu_clip_min,
     hu_clip_max=hu_clip_max)
 print("dataloader loaded successfully")
-model = CLIPSegForImageSegmentation.from_pretrained("CIDAS/clipseg-rd64-refined", cache_dir="./CLIP/hf_cache")
+#model = CLIPSegForImageSegmentation.from_pretrained("CIDAS/clipseg-rd64-refined", cache_dir="./CLIP/hf_cache")
+model = CLIPSegForImageSegmentation.from_pretrained("./CIDAS_clipseg-rd64-refined", cache_dir="./CLIP/hf_cache")
 print("Model loaded successfully")
 #print(model)
 lora_config = LoraConfig(
