@@ -19,7 +19,8 @@
 
 clip的输出文件已经写好了，文件名为output_test.py,输出会建立一个新的器官名称的文件夹，文件夹中是nii.gz文件，已经按照不同器官的序号填入矩阵当中，最后合一下就可以
 跑output_test.py时需要确定提示词和器官名称
-
+# Clip 数据处理
+上传了一个build_dataset_1.py,使用分批处理数据，相当于时间换了空间，目前clip的dice score可以达到0.6845
 
 ## 数据重采样
 见信哥的文件夹[./zxl/preprocess/resample.py](./zxl/preprocess/resample.py)
